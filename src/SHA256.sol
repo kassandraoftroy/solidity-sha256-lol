@@ -6,18 +6,24 @@ pragma solidity ^0.8.13;
 /// h/t to rage_pit for hints on the input padding assembly bit
 contract SHA256 {
 
+    /// @dev this implementation of sha256 closesly follows 
+    /// https://en.wikipedia.org/wiki/SHA-2#Pseudocode
     function hash(bytes memory value) external pure returns (bytes32 output) {
-        (uint32[] memory words, uint256 rounds) = padInput(value);
+        // pad and format input into array of uint32 words 
+        (uint32[] memory words, uint256 rounds) = preprocess(value);
 
+        // initial hash values
         uint32[8] memory h = [
             0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19
         ];
 
+        // run algorithm on each 64 byte chunk of words in rounds
         for (uint256 i=0; i<rounds; i++) {
+            // store intermediate round result in h
             h = round(words, h, i);
         }
 
-        // pack h, 8 uint32 words, into a bytes32
+        // pack final h into a bytes32
         assembly {
             let ptr := mload(0x40)
             mstore(ptr, shl(0xe0, mload(h)))
@@ -88,7 +94,7 @@ contract SHA256 {
         }
     }
 
-    function padInput(bytes memory input) internal pure returns (uint32[] memory output, uint256 rounds) {
+    function preprocess(bytes memory input) internal pure returns (uint32[] memory output, uint256 rounds) {
         assembly {
              // this part that pads the data is from rage_pit
             let len := mload(input)
@@ -119,7 +125,7 @@ contract SHA256 {
             mstore(free, 0x20)
             let entries := mul(rounds, 0x10)
             mstore(add(free, 0x20), entries)
-            for {let i := 0} lt(i, entries) {i := add(i, 1)} {
+            for {let i := 0x00} lt(i, entries) {i := add(i, 0x01)} {
                 mstore(add(add(free, 0x20), mul(i, 0x20)), shr(0xe0, mload(add(dataPtr, mul(i, 0x04)))))
             }
             output := free

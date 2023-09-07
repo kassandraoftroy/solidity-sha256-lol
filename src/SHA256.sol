@@ -3,7 +3,7 @@ pragma solidity ^0.8.13;
 
 /// @notice NOT AUDITED
 /// author: kassandra.eth
-/// h/t to rage_pit for help on the input padding padding assembly bit
+/// h/t to rage_pit for hints on the input padding assembly bit
 contract SHA256 {
 
     function hash(bytes memory value) external pure returns (bytes32 output) {
@@ -14,13 +14,7 @@ contract SHA256 {
         ];
 
         for (uint256 i=0; i<rounds; i++) {
-            uint32[16] memory chunk = [
-                words[i*16], words[i*16+1], words[i*16+2], words[i*16+3],
-                words[i*16+4], words[i*16+5], words[i*16+6], words[i*16+7],
-                words[i*16+8], words[i*16+9], words[i*16+10], words[i*16+11],
-                words[i*16+12], words[i*16+13], words[i*16+14], words[i*16+15]
-            ];
-            h = round(chunk, h);
+            h = round(words, h, i);
         }
 
         // pack h, 8 uint32 words, into a bytes32
@@ -38,14 +32,11 @@ contract SHA256 {
         }
     }
 
-    // initial hashes = [
-    //     0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19
-    // ];
-    function round(uint32[16] memory chunk, uint32[8] memory hashes) public pure returns (uint32[8] memory output)  {
+    function round(uint32[] memory input, uint32[8] memory hashes, uint256 n) public pure returns (uint32[8] memory output)  {
         unchecked {
             uint32[64] memory w;
-            for (uint256 n=0; n<16; n++){
-                w[n] = chunk[n];
+            for (uint256 i=0; i<16; i++){
+                w[i] = input[n*16+i];
             }
 
             for (uint256 j=16; j<64; j++) {
@@ -61,7 +52,7 @@ contract SHA256 {
             uint32 g = hashes[6];
             uint32 h = hashes[7];
 
-            uint32[64] memory k = [
+            uint32[64] memory ks = [
                 0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
                 0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
                 0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
@@ -71,8 +62,8 @@ contract SHA256 {
                 0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
                 0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2
             ];
-            for (uint256 i=0; i<64; i++) {
-                uint32 temp1 = h + sigma1(e) + Ch(e,f,g) + k[i] + w[i];
+            for (uint256 k=0; k<64; k++) {
+                uint32 temp1 = h + sigma1(e) + Ch(e,f,g) + ks[k] + w[k];
                 uint32 temp2 = sigma0(a) + Maj(a,b,c);
                 h = g;
                 g = f;
@@ -98,8 +89,8 @@ contract SHA256 {
     }
 
     function padInput(bytes memory input) internal pure returns (uint32[] memory output, uint256 rounds) {
-        // this part is from rage_pit
         assembly {
+             // this part that pads the data is from rage_pit
             let len := mload(input)
             let dataPtr := add(input, 0x20)
             // pad message with 0b1
